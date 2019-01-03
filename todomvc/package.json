@@ -1,0 +1,23 @@
+{
+  "name": "todomvc",
+  "version": "1.0.0",
+  "description": "https://github.com/vuejs/vue/tree/dev/examples/todomvc",
+  "scripts": {
+    "build": "webpack --progress",
+    "start:dev": "webpack-dev-server",
+    "start": "http-server dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "webpack": "^4.28.3",
+    "webpack-cli": "^3.1.2",
+    "webpack-dev-server": "^3.1.14"
+  },
+  "dependencies": {
+    "cross-env": "^5.2.0",
+    "http-server": "^0.11.1"
+  }
+}
