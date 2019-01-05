@@ -29,30 +29,16 @@ const todoService = {
     query {
       find {
         _id,
-        text,
+        title,
         createdAt,
-        visibility
+        completed
       }
     }
     `
     })
-    const todo = find.map(({
-      _id,
-      text,
-      visibility
-    }) => {
-      return {
-        title: text,
-        id: _id,
-        completed: visibility
-      }
-    })
 
-    return todo
-
-
+    return find
   },
-
   async delete(id) {
     const r = await makeRequest({
       query: `
@@ -65,27 +51,26 @@ const todoService = {
     })
     return r
   },
-
   async create(params) {
     const {
       create
     } = await makeRequest({
       query: `
-        mutation createTodo($text: String!, $visibility: Boolean!) {
-          create(text: $text, visibility: $visibility) 
+        mutation createTodo($title: String!, $completed: Boolean!) {
+          create(title: $title, completed: $completed) 
         }`,
       variables: params
     })
     return create
   },
-
   async update(id, params) {
+    console.log('id', id, 'params', params)
     const {
       update
     } = await makeRequest({
       query: `
-        mutation updateTodo($_id: String!, $text: String, $visibility: Boolean) {
-          update(_id: $_id, text: $text, visibility: $visibility) 
+        mutation updateTodo($_id: String!, $title: String, $completed: Boolean) {
+          update(_id: $_id, title: $title, completed: $completed) 
         }`,
       variables: {
         _id: id,
@@ -94,11 +79,10 @@ const todoService = {
     })
     return update
   },
-
-  updateCache: function (todos) {
+  updateCache(todos) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   },
-  fetchCache () {
+  fetchCache() {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
 
   }
@@ -134,7 +118,7 @@ const app = new Vue({
   // watch todos change for localStorage persistence
   watch: {
     todos: {
-      handler: function (todos) {
+      handler(todos) {
         todoService.updateCache(todos)
       },
       deep: true
@@ -179,7 +163,7 @@ const app = new Vue({
 
       const tempId = Date.now()
       const tempTodo = {
-        id: tempId,
+        _id: tempId,
         title: value,
         completed: false
       }
@@ -188,15 +172,15 @@ const app = new Vue({
       this.newTodo = ''
 
       todoService.create({
-        text: tempTodo.title,
-        visibility: tempTodo.completed
+        title: tempTodo.title,
+        completed: tempTodo.completed
       })
 
     },
 
     removeTodo(todo) {
       this.todos.splice(this.todos.indexOf(todo), 1)
-      todoService.delete(todo.id)
+      todoService.delete(todo._id)
     },
 
     editTodo(todo) {
@@ -211,16 +195,17 @@ const app = new Vue({
       todo.title = todo.title.trim()
       if (!todo.title) {
         this.removeTodo(todo)
-        todoService.delete(todo.id)
+        todoService.delete(todo._id)
         return;
       }
-      todoService.update(todo.id, {
-        text: todo.title
+      todoService.update(todo._id, {
+        title: todo.title
       })
     },
     completeTodo(todo) {
-      todoService.update(todo.id, {
-        visibility: todo.completed
+      console.log('todo', todo.completed)
+      todoService.update(todo._id, {
+        completed: !!!todo.completed
       })
     },
     cancelEdit(todo) {
@@ -237,7 +222,7 @@ const app = new Vue({
   // before focusing on the input field.
   // https://vuejs.org/guide/custom-directive.html
   directives: {
-    'todo-focus': function (el, binding) {
+    'todo-focus': (el, binding) => {
       if (binding.value) {
         el.focus()
       }
