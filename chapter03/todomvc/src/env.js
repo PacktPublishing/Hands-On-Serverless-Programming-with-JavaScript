@@ -1,3 +1,3 @@
 module.exports = {
-    "API_URL": "SUA_URL"
+    "API_URL": "YOUR_API_URL"
 }

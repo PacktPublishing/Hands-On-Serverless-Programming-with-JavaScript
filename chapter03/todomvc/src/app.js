@@ -5,18 +5,102 @@ import Vue from './vue.min.js'
 // localStorage persistence
 const URL = env.API_URL
 
+import axios from 'axios'
+
 const STORAGE_KEY = 'todos-vuejs-2.0'
-const todoStorage = {
-  fetch: function () {
-    const todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    todos.forEach(function (todo, index) {
-      todo.id = index
+
+async function makeRequest(params) {
+  const {
+    data: {
+      data
+    }
+  } = await axios.post(
+    URL, params
+  )
+  return data
+}
+const todoService = {
+  async fetch() {
+
+    const {
+      find
+    } = await makeRequest({
+      query: `
+    query {
+      find {
+        _id,
+        text,
+        createdAt,
+        visibility
+      }
+    }
+    `
     })
-    todoStorage.uid = todos.length
-    return todos
+    const todo = find.map(({
+      _id,
+      text,
+      visibility
+    }) => {
+      return {
+        title: text,
+        id: _id,
+        completed: visibility
+      }
+    })
+
+    return todo
+
+
   },
-  save: function (todos) {
+
+  async delete(id) {
+    const r = await makeRequest({
+      query: `
+        mutation deleteTodo($_id: String!) {
+          delete(_id: $_id) 
+        }`,
+      variables: {
+        _id: id
+      }
+    })
+    return r
+  },
+
+  async create(params) {
+    const {
+      create
+    } = await makeRequest({
+      query: `
+        mutation createTodo($text: String!, $visibility: Boolean!) {
+          create(text: $text, visibility: $visibility) 
+        }`,
+      variables: params
+    })
+    return create
+  },
+
+  async update(id, params) {
+    const {
+      update
+    } = await makeRequest({
+      query: `
+        mutation updateTodo($_id: String!, $text: String, $visibility: Boolean) {
+          update(_id: $_id, text: $text, visibility: $visibility) 
+        }`,
+      variables: {
+        _id: id,
+        ...params
+      }
+    })
+    return update
+  },
+
+  updateCache: function (todos) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+  },
+  fetchCache () {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]")
+
   }
 }
 
@@ -41,7 +125,7 @@ const filters = {
 const app = new Vue({
   // app initial state
   data: {
-    todos: todoStorage.fetch(),
+    todos: todoService.fetchCache(),
     newTodo: '',
     editedTodo: null,
     visibility: 'all'
@@ -51,12 +135,14 @@ const app = new Vue({
   watch: {
     todos: {
       handler: function (todos) {
-        todoStorage.save(todos)
+        todoService.updateCache(todos)
       },
       deep: true
     }
   },
-
+  async mounted() {
+    this.todos = await todoService.fetch()
+  },
   // computed properties
   // https://vuejs.org/guide/computed.html
   computed: {
@@ -87,45 +173,62 @@ const app = new Vue({
   // methods that implement data logic.
   // note there's no DOM manipulation here at all.
   methods: {
-    addTodo: function () {
+    addTodo() {
       const value = this.newTodo && this.newTodo.trim()
-      if (!value) {
-        return
-      }
-      this.todos.push({
-        id: todoStorage.uid++,
+      if (!value) return
+
+      const tempId = Date.now()
+      const tempTodo = {
+        id: tempId,
         title: value,
         completed: false
-      })
+      }
+
+      this.todos.push(tempTodo)
       this.newTodo = ''
+
+      todoService.create({
+        text: tempTodo.title,
+        visibility: tempTodo.completed
+      })
+
     },
 
-    removeTodo: function (todo) {
+    removeTodo(todo) {
       this.todos.splice(this.todos.indexOf(todo), 1)
+      todoService.delete(todo.id)
     },
 
-    editTodo: function (todo) {
+    editTodo(todo) {
       this.beforeEditCache = todo.title
       this.editedTodo = todo
     },
 
-    doneEdit: function (todo) {
-      if (!this.editedTodo) {
-        return
-      }
+    doneEdit(todo) {
+      if (!this.editedTodo) return
+
       this.editedTodo = null
       todo.title = todo.title.trim()
       if (!todo.title) {
         this.removeTodo(todo)
+        todoService.delete(todo.id)
+        return;
       }
+      todoService.update(todo.id, {
+        text: todo.title
+      })
     },
-
-    cancelEdit: function (todo) {
+    completeTodo(todo) {
+      todoService.update(todo.id, {
+        visibility: todo.completed
+      })
+    },
+    cancelEdit(todo) {
       this.editedTodo = null
       todo.title = this.beforeEditCache
     },
 
-    removeCompleted: function () {
+    removeCompleted() {
       this.todos = filters.active(this.todos)
     }
   },
@@ -143,7 +246,7 @@ const app = new Vue({
 })
 
 // handle routing
-function onHashChange () {
+function onHashChange() {
   const visibility = window.location.hash.replace(/#\/?/, '')
   if (filters[visibility]) {
     app.visibility = visibility
